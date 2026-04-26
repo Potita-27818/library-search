@@ -251,16 +251,6 @@
         : msg;
     }
 
-    function haversine(lat1, lon1, lat2, lon2) {
-      const R = 6371;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
     function fmtDist(km) {
       return km < 1 ? `約${Math.round(km * 1000)}m` : `約${km.toFixed(1)}km`;
     }
@@ -349,25 +339,23 @@
     function renderCards(userLat, userLng, libraries) {
       const container = document.getElementById('results');
 
-      const withDist = libraries
+      const sorted = libraries
         .filter(lib => lib.geocode)
         .map(lib => {
           const [libLng, libLat] = lib.geocode.split(',').map(Number);
-          return { ...lib, _lat: libLat, _lng: libLng, _dist: haversine(userLat, userLng, libLat, libLng) };
+          return { ...lib, _lat: libLat, _lng: libLng };
         })
-        .sort((a, b) => a._dist - b._dist);
+        .sort((a, b) => a.distance - b.distance);
 
-      if (withDist.length === 0) {
+      if (sorted.length === 0) {
         container.innerHTML = '<p class="no-result">近くに図書館が見つかりませんでした。</p>';
         return;
       }
 
-      const cards = withDist.map(lib => {
+      const cards = sorted.map(lib => {
         const name = escapeHtml(lib.formal || lib.short);
         const rows = [
           lib.address && `<div class="info-row"><span class="info-label">住所</span><span>${escapeHtml(lib.address)}</span></div>`,
-          lib.hours   && `<div class="info-row"><span class="info-label">開館時間</span><span>${escapeHtml(lib.hours)}</span></div>`,
-          lib.closed  && `<div class="info-row"><span class="info-label">休館日</span><span>${escapeHtml(lib.closed)}</span></div>`,
           lib.tel     && `<div class="info-row"><span class="info-label">電話</span><span>${escapeHtml(lib.tel)}</span></div>`,
         ].filter(Boolean).join('');
 
@@ -379,14 +367,14 @@
           <div class="library-card" onclick="focusLib(${lib._lat}, ${lib._lng})">
             <div class="card-header">
               <h3>${name}</h3>
-              <span class="distance-badge">📍 ${fmtDist(lib._dist)}</span>
+              <span class="distance-badge">📍 ${fmtDist(lib.distance)}</span>
             </div>
             <div class="card-info">${rows}</div>
             ${link ? `<div class="card-footer">${link}</div>` : ''}
           </div>`;
       }).join('');
 
-      container.innerHTML = `<h2>📖 見つかった図書館（${withDist.length}件・近い順）</h2>${cards}`;
+      container.innerHTML = `<h2>📖 見つかった図書館（${sorted.length}件・近い順）</h2>${cards}`;
     }
 
     function focusLib(lat, lng) {
