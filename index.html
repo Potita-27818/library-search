@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>近くの図書館を探す</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+      background: #f0f4f8;
+      color: #333;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a4a7a 0%, #2c6fad 100%);
+      color: white;
+      padding: 28px 20px;
+      text-align: center;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+    }
+
+    header h1 {
+      font-size: 1.9rem;
+      font-weight: bold;
+      letter-spacing: 0.05em;
+    }
+
+    header p {
+      margin-top: 6px;
+      opacity: 0.8;
+      font-size: 0.92rem;
+    }
+
+    .search-section {
+      text-align: center;
+      padding: 28px 20px 20px;
+    }
+
+    #searchBtn {
+      background: #2c6fad;
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 15px 36px;
+      font-size: 1.05rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 14px rgba(44,111,173,0.4);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #searchBtn:hover:not(:disabled) {
+      background: #1a4a7a;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(44,111,173,0.5);
+    }
+
+    #searchBtn:disabled {
+      background: #aaa;
+      cursor: default;
+      box-shadow: none;
+      transform: none;
+    }
+
+    #status {
+      margin-top: 14px;
+      color: #555;
+      font-size: 0.9rem;
+      min-height: 22px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ccc;
+      border-top-color: #2c6fad;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #map-wrapper {
+      display: none;
+      padding: 0 20px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    #map {
+      height: 420px;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    }
+
+    #results {
+      max-width: 960px;
+      margin: 24px auto 40px;
+      padding: 0 20px;
+    }
+
+    #results h2 {
+      font-size: 1.1rem;
+      color: #1a4a7a;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #d0e0f0;
+    }
+
+    .library-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      border-left: 5px solid #2c6fad;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .library-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .card-header h3 {
+      font-size: 1.1rem;
+      color: #1a4a7a;
+      flex: 1;
+    }
+
+    .distance-badge {
+      background: #e4f0fb;
+      color: #2c6fad;
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 0.82rem;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    .card-info {
+      font-size: 0.88rem;
+      color: #555;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 16px;
+    }
+
+    @media (max-width: 600px) {
+      .card-info { grid-template-columns: 1fr; }
+    }
+
+    .info-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .info-label {
+      color: #999;
+      min-width: 68px;
+      flex-shrink: 0;
+    }
+
+    .card-footer {
+      margin-top: 14px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .card-footer a {
+      display: inline-block;
+      color: #2c6fad;
+      text-decoration: none;
+      font-size: 0.85rem;
+      border: 1.5px solid #2c6fad;
+      border-radius: 20px;
+      padding: 4px 14px;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .card-footer a:hover {
+      background: #2c6fad;
+      color: white;
+    }
+
+    .error-msg {
+      color: #c0392b;
+      text-align: center;
+      padding: 24px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .no-result {
+      color: #777;
+      text-align: center;
+      padding: 24px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>📚 近くの図書館を探す</h1>
+    <p>現在地から近くの図書館を検索します</p>
+  </header>
+
+  <div class="search-section">
+    <button id="searchBtn" onclick="searchLibraries()">
+      📍 現在地から検索
+    </button>
+    <div id="status"></div>
+  </div>
+
+  <div id="map-wrapper">
+    <div id="map"></div>
+  </div>
+
+  <div id="results"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const API_KEY = '8cd5962ece7902776259ea8a30c3e677';
+    let map = null;
+
+    function setStatus(msg, loading = false) {
+      const el = document.getElementById('status');
+      el.innerHTML = loading
+        ? `<span class="spinner"></span>${msg}`
+        : msg;
+    }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function fmtDist(km) {
+      return km < 1 ? `約${Math.round(km * 1000)}m` : `約${km.toFixed(1)}km`;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    async function searchLibraries() {
+      const btn = document.getElementById('searchBtn');
+      btn.disabled = true;
+      setStatus('現在地を取得しています...', true);
+
+      if (!navigator.geolocation) {
+        setStatus('このブラウザは位置情報に対応していません。');
+        btn.disabled = false;
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async ({ coords: { latitude: lat, longitude: lng } }) => {
+          setStatus('図書館を検索しています...', true);
+          try {
+            const url = `https://api.calil.jp/library?appkey=${API_KEY}&geocode=${lng},${lat}&limit=10&callback=no`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const libraries = await res.json();
+            renderMap(lat, lng, libraries);
+            renderCards(lat, lng, libraries);
+            setStatus('');
+          } catch (e) {
+            setStatus('');
+            document.getElementById('results').innerHTML =
+              '<div class="error-msg">⚠️ データの取得に失敗しました。時間をおいて再度お試しください。</div>';
+          }
+          btn.disabled = false;
+        },
+        (err) => {
+          const msgs = {
+            1: '位置情報の利用が拒否されました。ブラウザの設定をご確認ください。',
+            2: '位置情報を取得できませんでした。',
+            3: '位置情報の取得がタイムアウトしました。',
+          };
+          setStatus(msgs[err.code] || '位置情報の取得に失敗しました。');
+          btn.disabled = false;
+        },
+        { timeout: 10000 }
+      );
+    }
+
+    function renderMap(userLat, userLng, libraries) {
+      document.getElementById('map-wrapper').style.display = 'block';
+
+      if (map) { map.remove(); map = null; }
+
+      map = L.map('map').setView([userLat, userLng], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(map);
+
+      // 現在地
+      const userIcon = L.divIcon({
+        html: '<div style="width:16px;height:16px;background:#e74c3c;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+        iconSize: [16, 16], iconAnchor: [8, 8], className: ''
+      });
+      L.marker([userLat, userLng], { icon: userIcon })
+        .addTo(map)
+        .bindPopup('<b>📍 現在地</b>')
+        .openPopup();
+
+      // 図書館
+      const libIcon = L.divIcon({
+        html: '<div style="width:14px;height:14px;background:#2c6fad;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3)"></div>',
+        iconSize: [14, 14], iconAnchor: [7, 7], className: ''
+      });
+
+      libraries.forEach(lib => {
+        if (!lib.geocode) return;
+        const [libLng, libLat] = lib.geocode.split(',').map(Number);
+        L.marker([libLat, libLng], { icon: libIcon })
+          .addTo(map)
+          .bindPopup(`<b>${escapeHtml(lib.formal || lib.short)}</b><br>${escapeHtml(lib.address || '')}`);
+      });
+    }
+
+    function renderCards(userLat, userLng, libraries) {
+      const container = document.getElementById('results');
+
+      const withDist = libraries
+        .filter(lib => lib.geocode)
+        .map(lib => {
+          const [libLng, libLat] = lib.geocode.split(',').map(Number);
+          return { ...lib, _lat: libLat, _lng: libLng, _dist: haversine(userLat, userLng, libLat, libLng) };
+        })
+        .sort((a, b) => a._dist - b._dist);
+
+      if (withDist.length === 0) {
+        container.innerHTML = '<p class="no-result">近くに図書館が見つかりませんでした。</p>';
+        return;
+      }
+
+      const cards = withDist.map(lib => {
+        const name = escapeHtml(lib.formal || lib.short);
+        const rows = [
+          lib.address && `<div class="info-row"><span class="info-label">住所</span><span>${escapeHtml(lib.address)}</span></div>`,
+          lib.hours   && `<div class="info-row"><span class="info-label">開館時間</span><span>${escapeHtml(lib.hours)}</span></div>`,
+          lib.closed  && `<div class="info-row"><span class="info-label">休館日</span><span>${escapeHtml(lib.closed)}</span></div>`,
+          lib.tel     && `<div class="info-row"><span class="info-label">電話</span><span>${escapeHtml(lib.tel)}</span></div>`,
+        ].filter(Boolean).join('');
+
+        const link = lib.url_pc
+          ? `<a href="${escapeHtml(lib.url_pc)}" target="_blank" rel="noopener noreferrer">公式サイト →</a>`
+          : '';
+
+        return `
+          <div class="library-card" onclick="focusLib(${lib._lat}, ${lib._lng})">
+            <div class="card-header">
+              <h3>${name}</h3>
+              <span class="distance-badge">📍 ${fmtDist(lib._dist)}</span>
+            </div>
+            <div class="card-info">${rows}</div>
+            ${link ? `<div class="card-footer">${link}</div>` : ''}
+          </div>`;
+      }).join('');
+
+      container.innerHTML = `<h2>📖 見つかった図書館（${withDist.length}件・近い順）</h2>${cards}`;
+    }
+
+    function focusLib(lat, lng) {
+      if (!map) return;
+      document.getElementById('map-wrapper').scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => map.setView([lat, lng], 16), 400);
+    }
+  </script>
+
+</body>
+</html>
