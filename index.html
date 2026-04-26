@@ -242,27 +242,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const API_KEY = '8cd5962ece7902776259ea8a30c3e677';
     let map = null;
-
-    function fetchJSONP(url) {
-      return new Promise((resolve, reject) => {
-        const cbName = '__calil_' + Date.now();
-        const script = document.createElement('script');
-        window[cbName] = (data) => {
-          delete window[cbName];
-          document.head.removeChild(script);
-          resolve(data);
-        };
-        script.onerror = () => {
-          delete window[cbName];
-          document.head.removeChild(script);
-          reject(new Error('JSONP failed'));
-        };
-        script.src = `${url}&callback=${cbName}`;
-        document.head.appendChild(script);
-      });
-    }
 
     function setStatus(msg, loading = false) {
       const el = document.getElementById('status');
@@ -305,8 +285,9 @@
         async ({ coords: { latitude: lat, longitude: lng } }) => {
           setStatus('図書館を検索しています...', true);
           try {
-            const url = `https://api.calil.jp/library?appkey=${API_KEY}&geocode=${lng},${lat}&limit=10`;
-            const libraries = await fetchJSONP(url);
+            const res = await fetch(`/api/libraries?lat=${lat}&lng=${lng}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const libraries = await res.json();
             renderMap(lat, lng, libraries);
             renderCards(lat, lng, libraries);
             setStatus('');
